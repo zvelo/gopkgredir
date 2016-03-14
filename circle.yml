@@ -2,13 +2,16 @@ machine:
   services:
     - docker
 
-test:
+dependencies:
   override:
     - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -v -tags netgo -installsuffix netgo
+
+test:
+  override:
     - docker build -t $DOCKER_IMAGE .
 
 deployment:
   hub:
     branch: master
     commands:
-      - docker push $(DOCKER_IMAGE):latest
+      - docker push $DOCKER_IMAGE:latest

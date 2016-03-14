@@ -1,2 +1,4 @@
 .envrc
 /gopkgredir
+/k8s/*-dev.yaml
+/k8s/*-prod.yaml

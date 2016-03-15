@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 )
 
 const tpl = `<!DOCTYPE html>
@@ -144,7 +143,7 @@ func handlerFunc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(cfg.RedirectURL) == 0 {
-		ctx.RedirectURL = path.Join(ctx.RepoRoot, ctx.Package)
+		ctx.RedirectURL = ctx.RepoRoot + ctx.Package
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

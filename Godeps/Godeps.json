@@ -6,22 +6,9 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.9.0-3-g3455d89",
-			"Rev": "3455d89ac9652295c85db2a98ea32f1d61c380bc"
-		},
-		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-215-g0ab42fd",
 			"Rev": "0ab42fd482c27cf2c95e7794ad3bb2082c2ab2d7"
-		},
-		{
-			"ImportPath": "github.com/gin-gonic/contrib/ginrus",
-			"Rev": "14f66d54cdb96059bafca98665bcc6d9df4951f2"
-		},
-		{
-			"ImportPath": "github.com/gin-gonic/contrib/gzip",
-			"Rev": "14f66d54cdb96059bafca98665bcc6d9df4951f2"
 		},
 		{
 			"ImportPath": "github.com/gin-gonic/gin",
@@ -48,10 +35,6 @@
 		{
 			"ImportPath": "golang.org/x/net/netutil",
 			"Rev": "b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed"
-		},
-		{
-			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "50c6bc5e4292a1d4e65c6e9be5f53be28bcbe28e"
 		},
 		{
 			"ImportPath": "gopkg.in/go-playground/validator.v8",

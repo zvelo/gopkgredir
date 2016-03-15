@@ -1,17 +1,12 @@
 package main
 
 import (
+	"flag"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"path"
-	"sync"
-	"time"
-
-	"github.com/codegangsta/cli"
-	"github.com/gin-gonic/gin"
-	"github.com/tylerb/graceful"
 )
 
 const tpl = `<!DOCTYPE html>
@@ -27,11 +22,7 @@ Nothing to see here; <a href="{{.RedirectURL}}">move along</a>.
 </html>
 `
 
-const (
-	version     = "0.1.0"
-	name        = "gopkgredir"
-	htmlTplName = "html"
-)
+const htmlTplName = "html"
 
 type config struct {
 	ImportPrefix     string
@@ -50,141 +41,115 @@ type context struct {
 }
 
 var (
-	html   *template.Template
-	cfg    config
-	app    = cli.NewApp()
-	engine = gin.Default()
+	html    *template.Template
+	cfg     config
+	handler = http.HandlerFunc(handlerFunc)
 )
 
 func init() {
 	html = template.Must(template.New(htmlTplName).Parse(tpl))
 
-	app.Name = name
-	app.Version = version
-	app.Usage = "go package redirection service"
-	app.Authors = []cli.Author{
-		{Name: "Joshua Rubin", Email: "jrubin@zvelo.com"},
-	}
-	app.Before = setup
-	app.Action = run
-	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:   "import-prefix, i",
-			EnvVar: "IMPORT_PREFIX",
-			Usage:  "base url used for the vanity url, any part of the path after that given here is considered <package>",
-		},
-		cli.StringFlag{
-			Name:   "vcs",
-			EnvVar: "VCS",
-			Value:  "git",
-			Usage:  "vcs repo type",
-		},
-		cli.StringFlag{
-			Name:   "repo-root",
-			EnvVar: "REPO_ROOT",
-			Usage:  "base url used for the repo package path, /<package> is appended ",
-		},
-		cli.StringFlag{
-			Name:   "redirect-url",
-			EnvVar: "REDIRECT_URL",
-			Usage:  "url to redirect browsers to, if empty, redirects to repo-root/package",
-		},
-		cli.StringFlag{
-			Name:   "listen-address",
-			EnvVar: "LISTEN_ADDRESS",
-			Value:  "[::]:80",
-			Usage:  "address (ip/hostname and port) that the server should listen on",
-		},
-		cli.StringFlag{
-			Name:   "tls-listen-address",
-			EnvVar: "TLS_LISTEN_ADDRESS",
-			Value:  "[::]:443",
-			Usage:  "address (ip/hostname and port) that the server should listen on for tls requests",
-		},
-		cli.StringFlag{
-			Name:   "tls-cert-file",
-			EnvVar: "TLS_CERT_FILE",
-			Usage:  "tls certificate bundle",
-		},
-		cli.StringFlag{
-			Name:   "tls-key-file",
-			EnvVar: "TLS_KEY_FILE",
-			Usage:  "tls key file",
-		},
-	}
+	flag.StringVar(
+		&cfg.ImportPrefix,
+		"import-prefix",
+		getDefaultString("IMPORT_PREFIX", ""),
+		"base url used for the vanity url, any part of the path after that given here is considered <package> [$IMPORT_PREFIX]",
+	)
 
-	engine.SetHTMLTemplate(html)
-	engine.GET("/*package", handler)
+	flag.StringVar(
+		&cfg.VCS,
+		"vcs",
+		getDefaultString("VCS", "git"),
+		"vcs repo type [$VCS]",
+	)
+
+	flag.StringVar(
+		&cfg.RepoRoot,
+		"repo-root",
+		getDefaultString("REPO_ROOT", ""),
+		"base url used for the repo package path, /<package> is appended [$REPO_ROOT]",
+	)
+
+	flag.StringVar(
+		&cfg.RedirectURL,
+		"redirect-url",
+		getDefaultString("REDIRECT_URL", ""),
+		"url to redirect browsers to, if empty, redirects to repo-root/package [$REDIRECT_URL]",
+	)
+
+	flag.StringVar(
+		&cfg.ListenAddress,
+		"listen-address",
+		getDefaultString("LISTEN_ADDRESS", "[::]:80"),
+		"address (ip/hostname and port) that the server should listen on [$LISTEN_ADDRESS]",
+	)
+
+	flag.StringVar(
+		&cfg.TLSListenAddress,
+		"tls-listen-address",
+		getDefaultString("TLS_LISTEN_ADDRESS", "[::]:443"),
+		"address (ip/hostname and port) that the server should listen on for tls requests [$TLS_LISTEN_ADDRESS]",
+	)
+
+	flag.StringVar(
+		&cfg.TLSCertFile,
+		"tls-cert-file",
+		getDefaultString("TLS_CERT_FILE", ""),
+		"tls certificate bundle [$TLS_CERT_FILE]",
+	)
+
+	flag.StringVar(
+		&cfg.TLSKeyFile,
+		"tls-key-file",
+		getDefaultString("TLS_KEY_FILE", ""),
+		"tls key file [$TLS_KEY_FILE]",
+	)
+}
+
+func getDefaultString(envVar, fallback string) string {
+	ret := os.Getenv(envVar)
+	if len(ret) == 0 {
+		return fallback
+	}
+	return ret
 }
 
 func main() {
-	if err := app.Run(os.Args); err != nil {
-		log.Fatalln("app returned error", err)
-	}
+	flag.Parse()
+	log.Fatal(serve())
 }
 
-func setup(c *cli.Context) error {
-	cfg = config{
-		ImportPrefix:     c.String("import-prefix"),
-		VCS:              c.String("vcs"),
-		RepoRoot:         c.String("repo-root"),
-		RedirectURL:      c.String("redirect-url"),
-		ListenAddress:    c.String("listen-address"),
-		TLSListenAddress: c.String("tls-listen-address"),
-		TLSCertFile:      c.String("tls-cert-file"),
-		TLSKeyFile:       c.String("tls-key-file"),
-	}
-
-	return nil
-}
-
-func run(c *cli.Context) {
-	httpServer := &graceful.Server{
-		Timeout: 10 * time.Second,
-		Server:  &http.Server{Addr: cfg.ListenAddress, Handler: engine},
-	}
-
-	tlsServer := &graceful.Server{
-		Timeout: 10 * time.Second,
-		Server:  &http.Server{Addr: cfg.TLSListenAddress, Handler: engine},
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
+func serve() error {
+	errCh := make(chan error, 2)
 
 	go func() {
-		defer wg.Done()
-		// This always returns an error on exit
 		log.Printf("listening for http at %s", cfg.ListenAddress)
-		if err := httpServer.ListenAndServe(); err != nil {
-			log.Fatalln("http server failure", err)
+		errCh <- http.ListenAndServe(cfg.ListenAddress, handler)
+	}()
+
+	go func() {
+		if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
+			log.Printf("listening for tls at %s (%s, %s)", cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile)
+			errCh <- http.ListenAndServeTLS(cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile, handler)
 		}
 	}()
 
-	if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			log.Printf("listening for tls at %s (%s, %s)", cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile)
-			if err := tlsServer.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile); err != nil {
-				log.Fatalln("tls server failure", err)
-			}
-		}()
-	}
-
-	// wait for the graceful servers to stop
-	wg.Wait()
+	return <-errCh
 }
 
-func handler(c *gin.Context) {
+func handlerFunc(w http.ResponseWriter, r *http.Request) {
 	ctx := context{
 		config:  cfg,
-		Package: c.Param("package"),
+		Package: r.URL.Path,
 	}
 
 	if len(cfg.RedirectURL) == 0 {
 		ctx.RedirectURL = path.Join(ctx.RepoRoot, ctx.Package)
 	}
 
-	c.HTML(http.StatusOK, htmlTplName, ctx)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if err := html.ExecuteTemplate(w, htmlTplName, ctx); err != nil {
+		log.Println("error executing template", err)
+	}
 }

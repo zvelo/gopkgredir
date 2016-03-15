@@ -1,5 +1,5 @@
-ALL_DIRS=$(shell find . \( -path ./Godeps -o -path ./vendor -o -path ./.git \) -prune -o -type d -print)
-GO_PKGS=$(foreach pkg, $(shell go list ./...), $(if $(findstring /vendor/, $(pkg)), , $(pkg)))
+ALL_DIRS=$(shell find . -path ./.git -prune -o -type d -print)
+GO_PKGS=$(shell go list ./...)
 EXECUTABLE=gopkgredir
 DOCKER_DIR=Docker
 DOCKER_FILE=$(DOCKER_DIR)/Dockerfile
@@ -18,8 +18,6 @@ ifeq ("$(CIRCLECI)", "true")
 	GIT_COMMIT = $(CIRCLE_SHA1)
 endif
 
-export GO15VENDOREXPERIMENT=1
-
 all: build
 
 lint:
@@ -31,7 +29,7 @@ lint:
 
 metalint:
 	@for pkg in $(GO_PKGS); do \
-		eval "$(METALINT) $(SRC_DIR)/$$pkg" | grep -v '\/vendor\/' || true; \
+		eval "$(METALINT) $(SRC_DIR)/$$pkg" || true; \
 	done
 
 build: $(EXECUTABLE)
@@ -41,13 +39,6 @@ $(EXECUTABLE): $(GO_FILES)
 
 clean:
 	@rm -f $(EXECUTABLE) $(DOCKER_DIR)/$(EXECUTABLE)
-
-save: .save-stamp
-
-.save-stamp: $(GO_FILES)
-	@rm -rf ./Godeps ./vendor
-	GOOS=linux GOARCH=amd64 godep save ./...
-	@touch .save-stamp
 
 $(DOCKER_DIR)/$(EXECUTABLE): $(GO_FILES)
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -v -tags netgo -installsuffix netgo -o $(DOCKER_DIR)/$(EXECUTABLE) $(PKG)
@@ -74,4 +65,4 @@ $(HOME)/go/go$(GOLANG_VERSION)/bin/go: $(HOME)/go/go$(GOLANG_VERSION).linux-amd6
 
 install_go: $(HOME)/go/go$(GOLANG_VERSION)/bin/go
 
-.PHONY: all lint build clean save image push install_go
+.PHONY: all lint metalint build clean image push install_go

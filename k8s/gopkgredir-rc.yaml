@@ -26,8 +26,6 @@ spec:
           imagePullPolicy: Always
           env:
             - name: LISTEN_ADDRESS
-              value: "[::]:80"
-            - name: TLS_LISTEN_ADDRESS
               value: "[::]:443"
             # - name: TLS_CERT_FILE
             #   value:
@@ -42,7 +40,6 @@ spec:
             - name: VCS
               value: git
           ports:
-            - containerPort: 80
             - containerPort: 443
       #     volumeMounts:
       #     - mountPath: /etc/ssl/certs

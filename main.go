@@ -21,17 +21,20 @@ Nothing to see here; <a href="{{.RedirectURL}}">move along</a>.
 </html>
 `
 
-const htmlTplName = "html"
+const (
+	htmlTplName             = "html"
+	defaultListenAddress    = "[::1]:80"
+	defaultTLSListenAddress = "[::1]:443"
+)
 
 type config struct {
-	ImportPrefix     string
-	VCS              string
-	RepoRoot         string
-	RedirectURL      string
-	ListenAddress    string
-	TLSListenAddress string
-	TLSCertFile      string
-	TLSKeyFile       string
+	ImportPrefix  string
+	VCS           string
+	RepoRoot      string
+	RedirectURL   string
+	ListenAddress string
+	TLSCertFile   string
+	TLSKeyFile    string
 }
 
 type context struct {
@@ -78,15 +81,8 @@ func init() {
 	flag.StringVar(
 		&cfg.ListenAddress,
 		"listen-address",
-		getDefaultString("LISTEN_ADDRESS", "[::]:80"),
-		"address (ip/hostname and port) that the server should listen on [$LISTEN_ADDRESS]",
-	)
-
-	flag.StringVar(
-		&cfg.TLSListenAddress,
-		"tls-listen-address",
-		getDefaultString("TLS_LISTEN_ADDRESS", "[::]:443"),
-		"address (ip/hostname and port) that the server should listen on for tls requests [$TLS_LISTEN_ADDRESS]",
+		getDefaultString("LISTEN_ADDRESS", ""),
+		"address (ip/hostname and port) that the server should listen on (defaults to "+defaultListenAddress+" or "+defaultTLSListenAddress+" if tls certs are defined) [$LISTEN_ADDRESS]",
 	)
 
 	flag.StringVar(
@@ -114,25 +110,32 @@ func getDefaultString(envVar, fallback string) string {
 
 func main() {
 	flag.Parse()
+	setupListenAddress()
 	log.Fatal(serve())
 }
 
+func setupListenAddress() {
+	if len(cfg.ListenAddress) != 0 {
+		return
+	}
+
+	if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
+		cfg.ListenAddress = defaultTLSListenAddress
+		return
+	}
+
+	cfg.ListenAddress = defaultListenAddress
+}
+
 func serve() error {
-	errCh := make(chan error, 2)
+	if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
+		log.Printf("listening for tls at %s (%s, %s)", cfg.ListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile)
+		return http.ListenAndServeTLS(cfg.ListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile, handler())
+	}
 
-	go func() {
-		log.Printf("listening for http at %s", cfg.ListenAddress)
-		errCh <- http.ListenAndServe(cfg.ListenAddress, handler())
-	}()
-
-	go func() {
-		if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
-			log.Printf("listening for tls at %s (%s, %s)", cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile)
-			errCh <- http.ListenAndServeTLS(cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile, handler())
-		}
-	}()
-
-	return <-errCh
+	log.Printf("WARNING: TLS has not been configured!")
+	log.Printf("listening for http at %s", cfg.ListenAddress)
+	return http.ListenAndServe(cfg.ListenAddress, handler())
 }
 
 func handler() http.Handler {

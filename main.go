@@ -6,13 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 const tpl = `<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<meta name="go-import" content="{{.ImportPrefix}}{{.Package}} {{.VCS}} {{.RepoRoot}}{{.Package}}" >
+<meta name="go-import" content="{{.ImportPrefix}}{{.Package}} {{.VCS}} {{.RepoRoot}}/{{.RepoName}}" >
 <meta http-equiv="refresh" content="0; url={{.RedirectURL}}">
 </head>
 <body>
@@ -39,7 +40,8 @@ type config struct {
 
 type context struct {
 	config
-	Package string
+	Package  string
+	RepoName string
 }
 
 var (
@@ -68,7 +70,7 @@ func init() {
 		&cfg.RepoRoot,
 		"repo-root",
 		getDefaultString("REPO_ROOT", ""),
-		"base url used for the repo package path, /<package> is appended [$REPO_ROOT]",
+		"base url used for the repo package path, the first path part of <package> is appended [$REPO_ROOT]",
 	)
 
 	flag.StringVar(
@@ -143,6 +145,11 @@ func handler() http.Handler {
 		ctx := context{
 			config:  cfg,
 			Package: r.URL.Path,
+		}
+
+		pkg := strings.Split(ctx.Package, "/")
+		if len(pkg) > 1 {
+			ctx.RepoName = pkg[1]
 		}
 
 		if len(cfg.RedirectURL) == 0 {

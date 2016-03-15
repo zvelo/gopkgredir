@@ -13,7 +13,7 @@ const tpl = `<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<meta name="go-import" content="{{.ImportPrefix}}{{.Package}} {{.VCS}} {{.RepoRoot}}/{{.RepoName}}" >
+<meta name="go-import" content="{{.ImportPrefix}}/{{.RepoName}} {{.VCS}} {{.RepoRoot}}/{{.RepoName}}" >
 <meta http-equiv="refresh" content="0; url={{.RedirectURL}}">
 </head>
 <body>
@@ -40,8 +40,8 @@ type config struct {
 
 type context struct {
 	config
-	Package  string
-	RepoName string
+	RepoName    string
+	RedirectURL string
 }
 
 var (
@@ -143,17 +143,17 @@ func serve() error {
 func handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context{
-			config:  cfg,
-			Package: r.URL.Path,
+			config:      cfg,
+			RedirectURL: cfg.RedirectURL,
 		}
 
-		pkg := strings.Split(ctx.Package, "/")
+		pkg := strings.Split(r.URL.Path, "/")
 		if len(pkg) > 1 {
 			ctx.RepoName = pkg[1]
-		}
 
-		if len(cfg.RedirectURL) == 0 {
-			ctx.RedirectURL = ctx.RepoRoot + ctx.Package
+			if len(cfg.RedirectURL) == 0 {
+				ctx.RedirectURL = ctx.RepoRoot + "/" + pkg[1]
+			}
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -40,9 +40,8 @@ type context struct {
 }
 
 var (
-	html    *template.Template
-	cfg     config
-	handler = http.HandlerFunc(handlerFunc)
+	html *template.Template
+	cfg  config
 )
 
 func init() {
@@ -123,32 +122,34 @@ func serve() error {
 
 	go func() {
 		log.Printf("listening for http at %s", cfg.ListenAddress)
-		errCh <- http.ListenAndServe(cfg.ListenAddress, handler)
+		errCh <- http.ListenAndServe(cfg.ListenAddress, handler())
 	}()
 
 	go func() {
 		if len(cfg.TLSCertFile) > 0 && len(cfg.TLSKeyFile) > 0 {
 			log.Printf("listening for tls at %s (%s, %s)", cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile)
-			errCh <- http.ListenAndServeTLS(cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile, handler)
+			errCh <- http.ListenAndServeTLS(cfg.TLSListenAddress, cfg.TLSCertFile, cfg.TLSKeyFile, handler())
 		}
 	}()
 
 	return <-errCh
 }
 
-func handlerFunc(w http.ResponseWriter, r *http.Request) {
-	ctx := context{
-		config:  cfg,
-		Package: r.URL.Path,
-	}
+func handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context{
+			config:  cfg,
+			Package: r.URL.Path,
+		}
 
-	if len(cfg.RedirectURL) == 0 {
-		ctx.RedirectURL = ctx.RepoRoot + ctx.Package
-	}
+		if len(cfg.RedirectURL) == 0 {
+			ctx.RedirectURL = ctx.RepoRoot + ctx.Package
+		}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	if err := html.ExecuteTemplate(w, htmlTplName, ctx); err != nil {
-		log.Println("error executing template", err)
-	}
+		if err := html.ExecuteTemplate(w, htmlTplName, ctx); err != nil {
+			log.Println("error executing template", err)
+		}
+	})
 }

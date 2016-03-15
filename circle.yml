@@ -4,7 +4,7 @@ machine:
 
 dependencies:
   override:
-    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -v -tags netgo -installsuffix netgo
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -v -tags netgo -installsuffix netgo -o Docker/gopkgredir
 
 test:
   override:

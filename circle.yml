@@ -19,6 +19,7 @@ dependencies:
   pre:
     - make install_go
   override:
+    - go version
 
 test:
   override:

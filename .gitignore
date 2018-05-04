@@ -1,6 +1,2 @@
-.envrc
-/.save-stamp
 /gopkgredir
-/Docker/gopkgredir
-/k8s/*-dev.yaml
-/k8s/*-prod.yaml
+/.coverage-all.out

@@ -1,0 +1,23 @@
+---
+version: 2
+
+jobs:
+  build:
+    working_directory: /go/src/zvelo.io/gopkgredir
+
+    docker:
+      - image: circleci/golang:latest
+
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: |
+            go get github.com/magefile/mage
+      - setup_remote_docker
+      - run: mage -v image
+      - deploy:
+          name: Push images to docker hub
+          command: |
+            docker login -u "${DOCKER_USER}" -p "${DOCKER_PASS}"
+            mage -v deploy

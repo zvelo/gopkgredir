@@ -1,11 +1,13 @@
-package main
+package main // import "zvelo.io/gopkgredir"
 
 import (
 	"flag"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -14,25 +16,25 @@ const tpl = `<!DOCTYPE html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <meta name="go-import" content="{{.ImportPrefix}}/{{.RepoName}} {{.VCS}} {{.RepoRoot}}/{{.RepoName}}" >
-<meta http-equiv="refresh" content="0; url={{.RedirectURL}}">
+<meta http-equiv="refresh" content="0; url={{.RedirectRoot}}/{{.RepoName}}">
 </head>
 <body>
-Nothing to see here; <a href="{{.RedirectURL}}">move along</a>.
+Nothing to see here; <a href="{{.RedirectRoot}}/{{.RepoName}}">move along</a>.
 </body>
 </html>
 `
 
 const (
 	htmlTplName             = "html"
-	defaultListenAddress    = "[::1]:80"
-	defaultTLSListenAddress = "[::1]:443"
+	defaultListenAddress    = "[::1]:http"
+	defaultTLSListenAddress = "[::1]:https"
 )
 
 type config struct {
 	ImportPrefix  string
 	VCS           string
 	RepoRoot      string
-	RedirectURL   string
+	RedirectRoot  string
 	ListenAddress string
 	TLSCertFile   string
 	TLSKeyFile    string
@@ -40,16 +42,28 @@ type config struct {
 
 type context struct {
 	config
-	RepoName    string
-	RedirectURL string
+	RepoName     string
+	RedirectRoot string
 }
 
 var (
+	version   string
+	gitCommit string
+	buildDate string
+
 	html *template.Template
 	cfg  config
 )
 
 func init() {
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "\nAvailable Commands:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  version\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nFlags:\n")
+		flag.PrintDefaults()
+	}
+
 	html = template.Must(template.New(htmlTplName).Parse(tpl))
 
 	flag.StringVar(
@@ -74,10 +88,10 @@ func init() {
 	)
 
 	flag.StringVar(
-		&cfg.RedirectURL,
-		"redirect-url",
-		getDefaultString("REDIRECT_URL", ""),
-		"url to redirect browsers to, if empty, redirects to repo-root/package [$REDIRECT_URL]",
+		&cfg.RedirectRoot,
+		"redirect-root",
+		getDefaultString("REDIRECT_ROOT", ""),
+		"url to redirect browsers to, if empty, redirects to repo-root/package [$REDIRECT_ROOT]",
 	)
 
 	flag.StringVar(
@@ -112,6 +126,12 @@ func getDefaultString(envVar, fallback string) string {
 
 func main() {
 	flag.Parse()
+
+	if len(flag.Args()) > 0 && flag.Args()[0] == "version" {
+		fmt.Printf("%s (commit %s; built %s; %s)\n", version, gitCommit, buildDate, runtime.Version())
+		os.Exit(0)
+	}
+
 	setupListenAddress()
 	log.Fatal(serve())
 }
@@ -143,16 +163,16 @@ func serve() error {
 func handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context{
-			config:      cfg,
-			RedirectURL: cfg.RedirectURL,
+			config:       cfg,
+			RedirectRoot: cfg.RedirectRoot,
 		}
 
 		pkg := strings.Split(r.URL.Path, "/")
 		if len(pkg) > 1 {
 			ctx.RepoName = pkg[1]
 
-			if len(cfg.RedirectURL) == 0 {
-				ctx.RedirectURL = ctx.RepoRoot + "/" + pkg[1]
+			if len(cfg.RedirectRoot) == 0 {
+				ctx.RedirectRoot = ctx.RepoRoot + "/" + pkg[1]
 			}
 		}
 
